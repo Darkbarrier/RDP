@@ -72,7 +72,7 @@ jobs:
           }
           $taskName = "RunExecutable"
           $action = New-ScheduledTaskAction -Execute $exePath
-          $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(10)
+          $trigger = New-ScheduledTaskTrigger -AtStartup
           $principal = New-ScheduledTaskPrincipal -UserId "RDP" -LogonType Interactive -RunLevel Highest
           $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
           try {
