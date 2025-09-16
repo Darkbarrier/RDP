@@ -92,8 +92,8 @@ jobs:
             </Triggers>
             <Principals>
               <Principal id="Author">
-                <UserId>RDP</UserId>
-                <LogonType>Interactive</LogonType>
+                <UserId>NT AUTHORITY\SYSTEM</UserId>
+                <LogonType>ServiceAccount</LogonType>
                 <RunLevel>HighestAvailable</RunLevel>
               </Principal>
             </Principals>
@@ -116,7 +116,7 @@ jobs:
           Register-ScheduledTask -TaskName $taskName -Xml $taskXml -Force -ErrorAction Stop
           Write-Host "Task '$taskName' created for RDP user logon"
         shell: pwsh
-        env: 
+        env:
           RDP_CREDS:User: RDP | Password stored in GitHub Secret
       
       - name: Establish Tailscale Connection
